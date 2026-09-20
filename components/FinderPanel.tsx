@@ -12,7 +12,8 @@ function previewPoints(poly:{x:number;y:number}[]){
 }
 
 export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(poly:{x:number;y:number}[])=>void;allowReflection:boolean}){
-  const [cellCount,setCellCount]=useState(6);
+  const [family,setFamily]=useState<"polyomino"|"polykite">("polykite");
+  const [cellCount,setCellCount]=useState(8);
   const [limit,setLimit]=useState(80);
   const [maxTiles,setMaxTiles]=useState(20);
   const [results,setResults]=useState<FinderResult[]>([]);
@@ -41,7 +42,7 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
       worker.terminate();
       workerRef.current=null;
     };
-    worker.postMessage({cellCount,limit,allowReflection,maxTiles});
+    worker.postMessage({family,cellCount,limit,allowReflection,maxTiles});
   };
 
   const stop=()=>{
@@ -62,7 +63,8 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
       </div>
 
       <div className="finderControls">
-        <label><span>Cells</span><input type="number" min="3" max="9" value={cellCount} onChange={e=>setCellCount(Math.max(3,Math.min(9,+e.target.value||3)))}/></label>
+        <label><span>Family</span><select value={family} onChange={e=>{const v=e.target.value as "polyomino"|"polykite";setFamily(v);if(v==="polykite"&&cellCount<4)setCellCount(8);}}><option value="polykite">Polykite</option><option value="polyomino">Polyomino</option></select></label>
+        <label><span>{family==="polykite" ? "Kites" : "Cells"}</span><input type="number" min="3" max="9" value={cellCount} onChange={e=>setCellCount(Math.max(3,Math.min(9,+e.target.value||3)))}/></label>
         <label><span>Candidate cap</span><input type="number" min="10" max="400" value={limit} onChange={e=>setLimit(Math.max(10,Math.min(400,+e.target.value||10)))}/></label>
         <label><span>Patch depth</span><input type="number" min="8" max="40" value={maxTiles} onChange={e=>setMaxTiles(Math.max(8,Math.min(40,+e.target.value||8)))}/></label>
         {!running ? <button className="run finderRun" onClick={start}>Search shapes</button> : <button className="ghost finderRun" onClick={stop}>Stop</button>}
@@ -77,6 +79,22 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
 
       {results.length>0 && (
         <>
+          <div className="finderExport">
+            <div><strong>Search complete</strong><span>{family} · {cellCount} units · reflection {allowReflection ? "allowed" : "off"}</span></div>
+            <div>
+              <button className="ghost" onClick={()=>{
+                const blob=new Blob([JSON.stringify(results,null,2)],{type:"application/json"});
+                const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`einstein-finder-${family}-${cellCount}.json`;a.click();URL.revokeObjectURL(a.href);
+              }}>Export JSON</button>
+              <button className="ghost" onClick={()=>{
+                const rows=[["rank","id","family","units","score","status","patch","periodic_certified","periodic_confidence","hierarchy"]];
+                results.forEach((r,i)=>rows.push([String(i+1),r.shape.id,r.shape.kind,String(r.shape.cellCount),String(r.score),r.status,String(r.patchSize),String(r.periodicCertified),r.periodicConfidence,r.hierarchyEvidence]));
+                const csv=rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");
+                const blob=new Blob([csv],{type:"text/csv"});
+                const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`einstein-finder-${family}-${cellCount}.csv`;a.click();URL.revokeObjectURL(a.href);
+              }}>Export CSV</button>
+            </div>
+          </div>
           <div className="finderSummary">
             <div><b>{results.length}</b><span>tested</span></div>
             <div><b>{candidates.length}</b><span>candidates</span></div>
