@@ -80,3 +80,5 @@ footer{padding:20px 4px;color:var(--muted);font-size:12px;line-height:1.5}footer
 .mathNote{grid-column:1/-1;margin:0;padding:13px 20px;border-top:1px solid var(--line);background:#101319}
 .mathNote strong{color:var(--text)}
 @media(max-width:800px){.periodicBody{grid-template-columns:1fr}.periodicVerdict{border-right:0;border-bottom:1px solid var(--line)}}
+
+.certificatePanel{border-top:1px solid var(--line);background:#111317}
