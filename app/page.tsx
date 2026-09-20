@@ -6,6 +6,7 @@ import { growPatch, Tile } from "@/lib/tiling";
 import { detectPeriodicTranslations, PeriodicResult } from "@/lib/periodic";
 import { certifyFundamentalDomain, FundamentalCertificate } from "@/lib/fundamental";
 import { detectHierarchy, HierarchyResult } from "@/lib/hierarchy";
+import FinderPanel from "@/components/FinderPanel";
 
 const GRID = 28;
 const W = 720;
@@ -66,8 +67,8 @@ export default function Home() {
       setCertificate(certifyFundamentalDomain(result.sampleTiles,periodicResult.u,periodicResult.v));
     }else{
       setCertificate(null);
-    setHierarchy(null);
     }
+    setHierarchy(result.reached>=12 ? detectHierarchy(result.sampleTiles) : null);
   };
 
   const reset=()=>{
@@ -311,6 +312,19 @@ export default function Home() {
           <div className="done"><span>✓</span><b>Hierarchy evidence</b><small>cluster / scale analysis</small></div>
         </div>
       </section>
+
+      <FinderPanel
+        allowReflection={allowReflection}
+        onLoadShape={(poly)=>{
+          setPoints(poly);
+          setClosed(true);
+          setPatch(null);
+          setPeriodic(null);
+          setCertificate(null);
+          setHierarchy(null);
+          window.scrollTo({top:0,behavior:"smooth"});
+        }}
+      />
 
       <footer>
         <strong>Important:</strong> failure to find a periodic tiling is not a proof of aperiodicity. This lab reports exactly what was searched.
