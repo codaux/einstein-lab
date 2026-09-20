@@ -17,14 +17,30 @@ self.onmessage=(event:MessageEvent<Request>)=>{
   const shapes=family==="polykite"
     ? enumeratePolykites(cellCount,limit)
     : enumeratePolyominoes(cellCount,limit);
-  const results=[];
+
+  const shallowDepth=Math.min(maxTiles,16);
+  const shallow=[];
   for(let i=0;i<shapes.length;i++){
-    results.push(screenShape(shapes[i],allowReflection,maxTiles));
+    shallow.push(screenShape(shapes[i],allowReflection,shallowDepth,8,false));
     if(i%5===0 || i===shapes.length-1){
-      self.postMessage({type:"progress",done:i+1,total:shapes.length});
+      self.postMessage({type:"progress",phase:"shallow",done:i+1,total:shapes.length});
     }
   }
-  self.postMessage({type:"done",results:rankFinderResults(results)});
+
+  let ranked=rankFinderResults(shallow);
+  const deepTargets=ranked.filter(r=>r.status==="candidate").slice(0,Math.min(20,ranked.length));
+  const deepMap=new Map(ranked.map(r=>[r.shape.id,r]));
+
+  if(maxTiles>shallowDepth && deepTargets.length){
+    for(let i=0;i<deepTargets.length;i++){
+      const r=deepTargets[i];
+      deepMap.set(r.shape.id,screenShape(r.shape,allowReflection,maxTiles,18,true));
+      self.postMessage({type:"progress",phase:"deep",done:i+1,total:deepTargets.length});
+    }
+    ranked=rankFinderResults([...deepMap.values()]);
+  }
+
+  self.postMessage({type:"done",results:ranked});
 };
 
 export {};
