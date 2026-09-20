@@ -1,4 +1,5 @@
 import { Point, distance } from "./geometry";
+import { polygonsInteriorOverlap } from "./overlap";
 
 export type Tile = Point[];
 export type PatchResult = {
@@ -8,46 +9,6 @@ export type PatchResult = {
   sampleTiles: Tile[];
   status: "grown" | "stalled";
 };
-
-const EPS = 1e-6;
-
-function pointInPolygon(p: Point, poly: Point[]) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    const hit = ((a.y > p.y) !== (b.y > p.y)) &&
-      (p.x < (b.x - a.x) * (p.y - a.y) / ((b.y - a.y) || EPS) + a.x);
-    if (hit) inside = !inside;
-  }
-  return inside;
-}
-
-function properSegmentIntersection(a: Point, b: Point, c: Point, d: Point) {
-  const cross = (p: Point, q: Point, r: Point) =>
-    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
-  const o1 = cross(a,b,c), o2 = cross(a,b,d), o3 = cross(c,d,a), o4 = cross(c,d,b);
-  return ((o1 > EPS && o2 < -EPS) || (o1 < -EPS && o2 > EPS)) &&
-         ((o3 > EPS && o4 < -EPS) || (o3 < -EPS && o4 > EPS));
-}
-
-function polygonsOverlap(a: Tile, b: Tile) {
-  for (let i = 0; i < a.length; i++) {
-    const a1 = a[i], a2 = a[(i+1)%a.length];
-    for (let j = 0; j < b.length; j++) {
-      const b1 = b[j], b2 = b[(j+1)%b.length];
-      if (properSegmentIntersection(a1,a2,b1,b2)) return true;
-    }
-  }
-  const ac = centroid(a), bc = centroid(b);
-  if (pointInPolygon(ac,b) || pointInPolygon(bc,a)) return true;
-  return false;
-}
-
-function centroid(poly: Tile) {
-  let x = 0, y = 0;
-  for (const p of poly) { x += p.x; y += p.y; }
-  return { x: x/poly.length, y: y/poly.length };
-}
 
 function transformEdgeToEdge(poly: Tile, edgeIndex: number, targetA: Point, targetB: Point, reflected: boolean) {
   const q0 = poly[edgeIndex];
@@ -123,7 +84,11 @@ export function growPatch(poly: Tile, options?: { maxTiles?: number; allowReflec
           for (const reflected of (allowReflection ? [false,true] : [false])) {
             tried++;
             const candidate = transformEdgeToEdge(poly,e,target.a,target.b,reflected);
-            if (state.some(t => polygonsOverlap(candidate,t))) continue;
+
+            // Critical validity rule: tile interiors must be disjoint.
+            // Shared edges / vertices are allowed; positive-area intersection is not.
+            if (state.some(t => polygonsInteriorOverlap(candidate, t))) continue;
+
             const ns = [...state,candidate];
             next.push(ns);
             if (ns.length > best.length) best = ns;
