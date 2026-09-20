@@ -3,7 +3,9 @@ import type { GeneratedShape } from "./generator";
 
 type Kite = Point[];
 const SQ3=Math.sqrt(3);
-const EPS=1e-6;
+const EPS=1e-7;
+const KEY_EPS=1e-3;
+
 const BASE:Kite=[
   {x:0,y:0},
   {x:0.25,y:SQ3/4},
@@ -11,8 +13,8 @@ const BASE:Kite=[
   {x:0.25,y:-SQ3/4},
 ];
 
-function q(n:number){return Math.round(n*1e6)/1e6;}
-function pkey(p:Point){return `${q(p.x)},${q(p.y)}`;}
+function snap(n:number){return Math.round(n/KEY_EPS)*KEY_EPS;}
+function pkey(p:Point){return `${snap(p.x)},${snap(p.y)}`;}
 function undirectedEdgeKey(a:Point,b:Point){
   const x=pkey(a),y=pkey(b);
   return x<y?`${x}|${y}`:`${y}|${x}`;
@@ -26,7 +28,7 @@ function reflectPoint(p:Point,a:Point,b:Point):Point{
   const l2=dx*dx+dy*dy;
   const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;
   const proj={x:a.x+t*dx,y:a.y+t*dy};
-  return {x:q(2*proj.x-p.x),y:q(2*proj.y-p.y)};
+  return {x:2*proj.x-p.x,y:2*proj.y-p.y};
 }
 
 function neighbor(k:Kite,edge:number):Kite{
@@ -45,15 +47,11 @@ function boundaryLoops(kites:Kite[]):Point[][]{
   }
 
   const adj=new Map<string,Point[]>();
-  const points=new Map<string,Point>();
   for(const {a,b} of edges.values()){
     const ka=pkey(a),kb=pkey(b);
-    points.set(ka,a);points.set(kb,b);
     const aa=adj.get(ka)??[];aa.push(b);adj.set(ka,aa);
     const bb=adj.get(kb)??[];bb.push(a);adj.set(kb,bb);
   }
-
-  // A simple disk boundary has degree 2 at every boundary vertex.
   for(const ns of adj.values()) if(ns.length!==2) return [];
 
   const used=new Set<string>();
@@ -89,29 +87,40 @@ function simplify(poly:Point[]){
   return out;
 }
 
-function transformPoint(p:Point,angle:number,mirror:boolean){
-  let x=mirror?-p.x:p.x,y=p.y;
-  const c=Math.cos(angle),s=Math.sin(angle);
-  return {x:q(x*c-y*s),y:q(x*s+y*c)};
+function boundarySignature(poly:Point[]){
+  const tokens:string[]=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i],b=poly[(i+1)%poly.length],c=poly[(i+2)%poly.length];
+    const v1={x:b.x-a.x,y:b.y-a.y},v2={x:c.x-b.x,y:c.y-b.y};
+    const length=Math.round(Math.hypot(v1.x,v1.y)*1000)/1000;
+    const cross=v1.x*v2.y-v1.y*v2.x;
+    const dot=v1.x*v2.x+v1.y*v2.y;
+    const raw=Math.atan2(cross,dot)*180/Math.PI;
+    const turn=Math.round(raw/30)*30;
+    tokens.push(`${length}:${turn}`);
+  }
+  return tokens;
+}
+
+function cyclicKeys(poly:Point[]){
+  const variants:string[]=[];
+  const forms:Point[][]=[
+    poly,
+    [...poly].reverse(),
+    poly.map(p=>({x:-p.x,y:p.y})),
+    [...poly.map(p=>({x:-p.x,y:p.y}))].reverse(),
+  ];
+  for(const form of forms){
+    const tokens=boundarySignature(form);
+    for(let shift=0;shift<tokens.length;shift++){
+      variants.push(tokens.map((_,i)=>tokens[(i+shift)%tokens.length]).join("|"));
+    }
+  }
+  return variants;
 }
 
 function canonicalPolygonKey(poly:Point[]){
-  const variants:string[]=[];
-  for(const mirror of [false,true]){
-    for(let r=0;r<12;r++){
-      const angle=r*Math.PI/6;
-      const pts=poly.map(p=>transformPoint(p,angle,mirror));
-      const minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y));
-      const norm=pts.map(p=>({x:q(p.x-minX),y:q(p.y-minY)}));
-      for(const rev of [false,true]){
-        const arr=rev?[...norm].reverse():norm;
-        for(let shift=0;shift<arr.length;shift++){
-          variants.push(arr.map((_,i)=>pkey(arr[(i+shift)%arr.length])).join(";"));
-        }
-      }
-    }
-  }
-  return variants.sort()[0];
+  return cyclicKeys(poly).sort()[0];
 }
 
 type State={kites:Kite[];polygon:Point[]};
@@ -136,7 +145,8 @@ export function enumeratePolykites(kiteCount:number,maxCandidates=1000):Generate
       for(const n of frontier.values()){
         const kites=[...state.kites,n];
         const loops=boundaryLoops(kites);
-        // Restrict discovery to connected topological disks: one boundary loop.
+        // Einstein Lab currently restricts discovery to topological disks.
+        // Polykites with holes therefore do not enter the search space.
         if(loops.length!==1) continue;
         const polygon=simplify(loops[0]);
         const key=canonicalPolygonKey(polygon);
