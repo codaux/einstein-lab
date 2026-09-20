@@ -14,7 +14,7 @@ function previewPoints(poly:{x:number;y:number}[]){
 export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(poly:{x:number;y:number}[])=>void;allowReflection:boolean}){
   const [family,setFamily]=useState<"polyomino"|"polykite">("polykite");
   const [cellCount,setCellCount]=useState(8);
-  const [limit,setLimit]=useState(80);
+  const [limit,setLimit]=useState(120);
   const [maxTiles,setMaxTiles]=useState(20);
   const [results,setResults]=useState<FinderResult[]>([]);
   const [progress,setProgress]=useState({phase:"shallow" as "shallow"|"deep",done:0,total:0});
@@ -65,9 +65,12 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
       <div className="finderControls">
         <label><span>Family</span><select value={family} onChange={e=>{const v=e.target.value as "polyomino"|"polykite";setFamily(v);if(v==="polykite"&&cellCount<4)setCellCount(8);}}><option value="polykite">Polykite</option><option value="polyomino">Polyomino</option></select></label>
         <label><span>{family==="polykite" ? "Kites" : "Cells"}</span><input type="number" min="3" max="9" value={cellCount} onChange={e=>setCellCount(Math.max(3,Math.min(9,+e.target.value||3)))}/></label>
-        <label><span>Candidate cap</span><input type="number" min="10" max="400" value={limit} onChange={e=>setLimit(Math.max(10,Math.min(400,+e.target.value||10)))}/></label>
+        <label><span>Candidate cap</span><input type="number" min="10" max="1200" value={limit} onChange={e=>setLimit(Math.max(10,Math.min(1200,+e.target.value||10)))}/></label>
         <label><span>Patch depth</span><input type="number" min="8" max="40" value={maxTiles} onChange={e=>setMaxTiles(Math.max(8,Math.min(40,+e.target.value||8)))}/></label>
-        {!running ? <button className="run finderRun" onClick={start}>Search shapes</button> : <button className="ghost finderRun" onClick={stop}>Stop</button>}
+        <div className="finderActions">
+          <button className="ghost" disabled={running} onClick={()=>{setFamily("polykite");setCellCount(8);setLimit(900);setMaxTiles(24);}}>Full 8-kite preset</button>
+          {!running ? <button className="run finderRun" onClick={start}>Search shapes</button> : <button className="ghost finderRun" onClick={stop}>Stop</button>}
+        </div>
       </div>
 
       {running && (
