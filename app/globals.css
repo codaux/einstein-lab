@@ -65,3 +65,18 @@ h1{font-size:56px;line-height:.95;margin:10px 0 12px;letter-spacing:-.055em}
 footer{padding:20px 4px;color:var(--muted);font-size:12px;line-height:1.5}footer strong{color:var(--text)}
 @media(max-width:900px){.shell{padding:18px}.layout,.resultGrid{grid-template-columns:1fr}.tilingView{border-right:0;border-bottom:1px solid var(--line)}.roadmap{grid-template-columns:1fr 1fr}.topbar{display:block}.badge{display:inline-block;margin-top:16px}h1{font-size:44px}}
 @media(max-width:560px){.roadmap{grid-template-columns:1fr}.panelHead{align-items:flex-start;gap:12px}.toolbar{justify-content:flex-end}.editorActions{align-items:flex-start;gap:12px;flex-direction:column}}
+
+.periodicPanel{border-top:1px solid var(--line);background:#0f1216}
+.periodicHead{padding:18px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.periodicHead>div:first-child{display:flex;align-items:center;gap:10px}.periodicHead h2{margin:0;font-size:15px}
+.resultPill.negative{color:#ff9c83;border-color:#5e2e26;background:#211513}
+.periodicEmpty{margin:0;padding:24px 20px;color:var(--muted);font-size:12px}
+.periodicBody{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:0}
+.periodicVerdict{padding:22px;border-right:1px solid var(--line)}
+.periodicVerdict strong{font-size:15px}.periodicVerdict p,.mathNote{font-size:12px;line-height:1.55;color:var(--muted)}
+.periodicMetrics{margin:0;padding:12px 20px}
+.periodicMetrics>div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.periodicMetrics dt{font-size:12px;color:var(--muted)}.periodicMetrics dd{margin:0;font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace}
+.mathNote{grid-column:1/-1;margin:0;padding:13px 20px;border-top:1px solid var(--line);background:#101319}
+.mathNote strong{color:var(--text)}
+@media(max-width:800px){.periodicBody{grid-template-columns:1fr}.periodicVerdict{border-right:0;border-bottom:1px solid var(--line)}}
