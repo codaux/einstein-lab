@@ -25,4 +25,21 @@ describe("polygon interior overlap", () => {
     expect(intersectionArea(square, square)).toBeCloseTo(4, 8);
     expect(polygonsInteriorOverlap(square, square)).toBe(true);
   });
+
+  it("stays stable with tiny floating-point noise", () => {
+    const a = [
+      {x:-3.0000000000000018,y:19},
+      {x:0.9999999999999987,y:19},
+      {x:0.9999999999999987,y:23},
+      {x:-3.0000000000000018,y:23},
+    ];
+    const b = [
+      {x:1,y:19},
+      {x:5,y:19},
+      {x:5,y:23},
+      {x:1,y:23},
+    ];
+    expect(intersectionArea(a,b)).toBe(0);
+    expect(polygonsInteriorOverlap(a,b)).toBe(false);
+  });
 });
