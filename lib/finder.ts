@@ -13,18 +13,19 @@ export type FinderResult = {
   periodicConfidence:"none"|"suggestive"|"strong";
   hierarchyEvidence:"none"|"weak"|"moderate"|"strong";
   score:number;
+  deepTested:boolean;
   status:"invalid"|"stalled"|"periodic"|"candidate";
 };
 
-export function screenShape(shape:GeneratedShape,allowReflection:boolean,maxTiles=24):FinderResult{
+export function screenShape(shape:GeneratedShape,allowReflection:boolean,maxTiles=24,beamWidth=10,deepTested=false):FinderResult{
   const v=validatePolygon(shape.polygon);
   if(!v.valid){
-    return {shape,valid:false,patchSize:0,periodicCertified:false,periodicConfidence:"none",hierarchyEvidence:"none",score:-100,status:"invalid"};
+    return {shape,valid:false,patchSize:0,periodicCertified:false,periodicConfidence:"none",hierarchyEvidence:"none",score:-100,deepTested,status:"invalid"};
   }
 
-  const patch=growPatch(shape.polygon,{maxTiles,allowReflection,beamWidth:10});
+  const patch=growPatch(shape.polygon,{maxTiles,allowReflection,beamWidth});
   if(patch.reached<6){
-    return {shape,valid:true,patchSize:patch.reached,periodicCertified:false,periodicConfidence:"none",hierarchyEvidence:"none",score:patch.reached,status:"stalled"};
+    return {shape,valid:true,patchSize:patch.reached,periodicCertified:false,periodicConfidence:"none",hierarchyEvidence:"none",score:patch.reached,deepTested,status:"stalled"};
   }
 
   const periodic=detectPeriodicTranslations(patch.sampleTiles);
@@ -45,6 +46,7 @@ export function screenShape(shape:GeneratedShape,allowReflection:boolean,maxTile
     periodicConfidence:periodic.confidence,
     hierarchyEvidence:hierarchy?.evidence??"none",
     score,
+    deepTested,
     status:cert?.certified?"periodic":"candidate"
   };
 }
