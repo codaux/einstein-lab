@@ -1,4 +1,4 @@
-import { Point, distance, signedArea } from "./geometry";
+import { Point, distance } from "./geometry";
 
 export type Tile = Point[];
 export type PatchResult = {
@@ -28,10 +28,6 @@ function properSegmentIntersection(a: Point, b: Point, c: Point, d: Point) {
   const o1 = cross(a,b,c), o2 = cross(a,b,d), o3 = cross(c,d,a), o4 = cross(c,d,b);
   return ((o1 > EPS && o2 < -EPS) || (o1 < -EPS && o2 > EPS)) &&
          ((o3 > EPS && o4 < -EPS) || (o3 < -EPS && o4 > EPS));
-}
-
-function samePoint(a: Point, b: Point) {
-  return distance(a,b) < EPS;
 }
 
 function polygonsOverlap(a: Tile, b: Tile) {
@@ -67,8 +63,8 @@ function transformEdgeToEdge(poly: Tile, edgeIndex: number, targetA: Point, targ
       const along = vx*ux + vy*uy;
       const perp = vx*(-uy) + vy*ux;
       return {
-        x: q0.x + along*ux - perp*(-uy),
-        y: q0.y + along*uy - perp*uy,
+        x: q0.x + along*ux + perp*uy,
+        y: q0.y + along*uy - perp*ux,
       };
     });
   }
@@ -127,13 +123,13 @@ export function growPatch(poly: Tile, options?: { maxTiles?: number; allowReflec
           for (const reflected of (allowReflection ? [false,true] : [false])) {
             tried++;
             const candidate = transformEdgeToEdge(poly,e,target.a,target.b,reflected);
-            const oppositeSide = signedArea(candidate) * signedArea(state[0]) > 0;
-            if (!oppositeSide) continue;
             if (state.some(t => polygonsOverlap(candidate,t))) continue;
             const ns = [...state,candidate];
             next.push(ns);
             if (ns.length > best.length) best = ns;
-            if (best.length >= maxTiles) return { reached: best.length, placementsTried: tried, deadEnds, sampleTiles: best, status: "grown" };
+            if (best.length >= maxTiles) {
+              return { reached: best.length, placementsTried: tried, deadEnds, sampleTiles: best, status: "grown" };
+            }
           }
         }
       }
