@@ -6,6 +6,7 @@ export type GeneratedShape = {
   cells:Cell[];
   polygon:Point[];
   cellCount:number;
+  kind:"polyomino"|"polykite";
 };
 
 const DIRS:Cell[]=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
@@ -117,6 +118,6 @@ export function enumeratePolyominoes(cellCount:number,maxCandidates=300):Generat
   }
 
   return [...current.entries()].slice(0,maxCandidates).map(([id,cells])=>({
-    id,cells,polygon:cellsToPolygon(cells),cellCount:cells.length
+    id,cells,polygon:cellsToPolygon(cells),cellCount:cells.length,kind:"polyomino"
   }));
 }
