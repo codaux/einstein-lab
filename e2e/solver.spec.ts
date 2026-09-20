@@ -17,3 +17,16 @@ test("local tiling button runs the solver in the browser", async ({ page }) => {
 
   await expect(page.getByText("Solver error")).toHaveCount(0);
 });
+
+
+test("concave sample runs without solver error", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Concave" }).click();
+  await page.getByRole("button", { name: "Run local tiling test" }).click();
+
+  await expect(
+    page.getByText(/Local compatibility found|No convincing growth found/)
+  ).toBeVisible({ timeout: 30_000 });
+
+  await expect(page.getByText("Solver error")).toHaveCount(0);
+});
