@@ -17,7 +17,7 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
   const [limit,setLimit]=useState(80);
   const [maxTiles,setMaxTiles]=useState(20);
   const [results,setResults]=useState<FinderResult[]>([]);
-  const [progress,setProgress]=useState({done:0,total:0});
+  const [progress,setProgress]=useState({phase:"shallow" as "shallow"|"deep",done:0,total:0});
   const [running,setRunning]=useState(false);
   const workerRef=useRef<Worker|null>(null);
 
@@ -27,9 +27,9 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
     workerRef.current=worker;
     setRunning(true);
     setResults([]);
-    setProgress({done:0,total:0});
+    setProgress({phase:"shallow",done:0,total:0});
     worker.onmessage=(event)=>{
-      if(event.data.type==="progress") setProgress({done:event.data.done,total:event.data.total});
+      if(event.data.type==="progress") setProgress({phase:event.data.phase,done:event.data.done,total:event.data.total});
       if(event.data.type==="done"){
         setResults(event.data.results);
         setRunning(false);
@@ -72,7 +72,7 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
 
       {running && (
         <div className="finderProgress">
-          <div><span>Screening canonical shapes</span><b>{progress.done} / {progress.total||"…"}</b></div>
+          <div><span>{progress.phase==="deep" ? "Deep-testing top candidates" : "Screening canonical shapes"}</span><b>{progress.done} / {progress.total||"…"}</b></div>
           <progress value={progress.done} max={Math.max(progress.total,1)}/>
         </div>
       )}
@@ -112,6 +112,7 @@ export default function FinderPanel({onLoadShape,allowReflection}:{onLoadShape:(
                   <span>{r.patchSize} tile patch</span>
                   <span>period: {r.periodicCertified ? "certified" : r.periodicConfidence}</span>
                   <span>hierarchy: {r.hierarchyEvidence}</span>
+                  <span>{r.deepTested ? "deep pass ✓" : "shallow pass"}</span>
                 </div>
               </button>
             ))}
