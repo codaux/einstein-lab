@@ -18,7 +18,6 @@ export type FundamentalCertificate = {
 };
 
 function cross(a:Vector,b:Vector){ return a.x*b.y-a.y*b.x; }
-function len(v:Vector){ return Math.hypot(v.x,v.y); }
 function centroid(tile:Tile):Point{
   let x=0,y=0;
   for(const p of tile){x+=p.x;y+=p.y;}
@@ -67,14 +66,26 @@ function shiftTile(tile:Tile,dx:number,dy:number):Tile{
   return tile.map(p=>({x:p.x+dx,y:p.y+dy}));
 }
 
+function orient(a:Point,b:Point,c:Point){
+  return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+}
+
+function pointOnSegment(p:Point,a:Point,b:Point){
+  if(Math.abs(orient(a,b,p))>EPS) return false;
+  return p.x>=Math.min(a.x,b.x)-EPS && p.x<=Math.max(a.x,b.x)+EPS &&
+         p.y>=Math.min(a.y,b.y)-EPS && p.y<=Math.max(a.y,b.y)+EPS;
+}
+
 function properSegmentIntersection(a:Point,b:Point,c:Point,d:Point){
-  const o=(p:Point,q:Point,r:Point)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
-  const o1=o(a,b,c),o2=o(a,b,d),o3=o(c,d,a),o4=o(c,d,b);
+  const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);
   return ((o1>EPS&&o2<-EPS)||(o1<-EPS&&o2>EPS)) &&
          ((o3>EPS&&o4<-EPS)||(o3<-EPS&&o4>EPS));
 }
 
-function pointInPolygon(p:Point,poly:Tile){
+function pointInPolygonStrict(p:Point,poly:Tile){
+  for(let i=0;i<poly.length;i++){
+    if(pointOnSegment(p,poly[i],poly[(i+1)%poly.length])) return false;
+  }
   let inside=false;
   for(let i=0,j=poly.length-1;i<poly.length;j=i++){
     const a=poly[i],b=poly[j];
@@ -85,10 +96,6 @@ function pointInPolygon(p:Point,poly:Tile){
   return inside;
 }
 
-function centroidSimple(poly:Tile){
-  return centroid(poly);
-}
-
 function overlap(a:Tile,b:Tile){
   for(let i=0;i<a.length;i++){
     const a1=a[i],a2=a[(i+1)%a.length];
@@ -97,8 +104,8 @@ function overlap(a:Tile,b:Tile){
       if(properSegmentIntersection(a1,a2,b1,b2)) return true;
     }
   }
-  const ac=centroidSimple(a),bc=centroidSimple(b);
-  if(pointInPolygon(ac,b)||pointInPolygon(bc,a)) return true;
+  for(const p of a) if(pointInPolygonStrict(p,b)) return true;
+  for(const p of b) if(pointInPolygonStrict(p,a)) return true;
   return false;
 }
 
@@ -110,6 +117,19 @@ function diameter(tile:Tile){
     }
   }
   return d;
+}
+
+function coefficientBounds(u:Vector,v:Vector,maxTranslationLength:number){
+  const det=Math.abs(cross(u,v));
+  if(det<EPS) return {a:0,b:0};
+  // Rows of B^-1 where B=[u v].  If ||t|| <= L then each
+  // lattice coefficient is bounded by L times the corresponding row norm.
+  const rowANorm=Math.hypot(v.y,-v.x)/det;
+  const rowBNorm=Math.hypot(-u.y,u.x)/det;
+  return {
+    a:Math.ceil(maxTranslationLength*rowANorm)+1,
+    b:Math.ceil(maxTranslationLength*rowBNorm)+1,
+  };
 }
 
 export function certifyFundamentalDomain(
@@ -136,33 +156,37 @@ export function certifyFundamentalDomain(
   const reps=[...repsMap.values()];
   const areaTiles=reps.reduce((s,t)=>s+Math.abs(signedArea(t)),0);
   const areaError=Math.abs(areaTiles-areaCell);
-
   const maxDiameter=Math.max(...reps.map(diameter),0);
-  const base=Math.max(Math.min(len(u),len(v)),EPS);
-  const radius=Math.max(1,Math.ceil(maxDiameter/base)+2);
+
+  // If two periodic copies overlap, the distance between their centroids
+  // is at most the sum of their circumstantial diameter bounds, <= 2D.
+  // The inverse-basis norm converts that geometric bound into exhaustive
+  // integer coefficient bounds for m*u+n*v.
+  const bounds=coefficientBounds(u,v,2*maxDiameter+EPS);
 
   let overlapsFound=0;
   let translationsChecked=0;
 
-  const copies:{tile:Tile;ri:number;i:number;j:number}[]=[];
-  for(let i=-radius;i<=radius;i++){
-    for(let j=-radius;j<=radius;j++){
-      const shift={x:i*u.x+j*v.x,y:i*u.y+j*v.y};
-      for(let ri=0;ri<reps.length;ri++){
-        copies.push({tile:shiftTile(reps[ri],shift.x,shift.y),ri,i,j});
-      }
-    }
-  }
-
-  for(let a=0;a<copies.length;a++){
-    for(let b=a+1;b<copies.length;b++){
-      const A=copies[a],B=copies[b];
-      if(A.ri===B.ri && A.i===B.i && A.j===B.j) continue;
-      translationsChecked++;
-      if(overlap(A.tile,B.tile)){
-        overlapsFound++;
+  // It is sufficient to compare representatives in the reference cell
+  // against every potentially intersecting lattice translate. Periodicity
+  // makes all other cell-to-cell comparisons equivalent to one of these.
+  for(let ra=0;ra<reps.length;ra++){
+    for(let rb=0;rb<reps.length;rb++){
+      for(let i=-bounds.a;i<=bounds.a;i++){
+        for(let j=-bounds.b;j<=bounds.b;j++){
+          if(ra===rb && i===0 && j===0) continue;
+          // Avoid checking each unordered same-cell pair twice.
+          if(i===0 && j===0 && rb<ra) continue;
+          const shift={x:i*u.x+j*v.x,y:i*u.y+j*v.y};
+          translationsChecked++;
+          if(overlap(reps[ra],shiftTile(reps[rb],shift.x,shift.y))){
+            overlapsFound++;
+            if(overlapsFound>10) break;
+          }
+        }
         if(overlapsFound>10) break;
       }
+      if(overlapsFound>10) break;
     }
     if(overlapsFound>10) break;
   }
@@ -181,9 +205,9 @@ export function certifyFundamentalDomain(
     u,
     v,
     reason: certified
-      ? "The representative tiles exactly fill one translation cell by area, and their periodic copies were verified non-overlapping across the required neighboring cells."
+      ? "The representative tiles have exactly one fundamental-cell area and all lattice translations capable of geometric intersection were exhaustively checked with no interior overlap."
       : areaError>areaTolerance
         ? "The representative tiles do not match the fundamental-cell area, so this pair of vectors does not define a complete periodic tiling certificate."
-        : "Periodic copies overlap, so this pair of translation vectors cannot certify a tiling."
+        : "At least one periodically translated tile overlaps another in its interior, so this lattice cannot certify a tiling."
   };
 }
