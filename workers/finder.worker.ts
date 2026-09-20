@@ -1,9 +1,11 @@
 /// <reference lib="webworker" />
 
 import { enumeratePolyominoes } from "../lib/generator";
+import { enumeratePolykites } from "../lib/polykite";
 import { rankFinderResults, screenShape } from "../lib/finder";
 
 type Request = {
+  family:"polyomino"|"polykite";
   cellCount:number;
   limit:number;
   allowReflection:boolean;
@@ -11,8 +13,10 @@ type Request = {
 };
 
 self.onmessage=(event:MessageEvent<Request>)=>{
-  const {cellCount,limit,allowReflection,maxTiles}=event.data;
-  const shapes=enumeratePolyominoes(cellCount,limit);
+  const {family,cellCount,limit,allowReflection,maxTiles}=event.data;
+  const shapes=family==="polykite"
+    ? enumeratePolykites(cellCount,limit)
+    : enumeratePolyominoes(cellCount,limit);
   const results=[];
   for(let i=0;i<shapes.length;i++){
     results.push(screenShape(shapes[i],allowReflection,maxTiles));
