@@ -5,6 +5,7 @@ import { Point, validatePolygon } from "@/lib/geometry";
 import { growPatch, Tile } from "@/lib/tiling";
 import { detectPeriodicTranslations, PeriodicResult } from "@/lib/periodic";
 import { certifyFundamentalDomain, FundamentalCertificate } from "@/lib/fundamental";
+import { detectHierarchy, HierarchyResult } from "@/lib/hierarchy";
 
 const GRID = 28;
 const W = 720;
@@ -38,6 +39,7 @@ export default function Home() {
   const [patch,setPatch]=useState<ReturnType<typeof growPatch>|null>(null);
   const [periodic,setPeriodic]=useState<PeriodicResult|null>(null);
   const [certificate,setCertificate]=useState<FundamentalCertificate|null>(null);
+  const [hierarchy,setHierarchy]=useState<HierarchyResult|null>(null);
 
   const validation=useMemo(()=>closed ? validatePolygon(points) : null,[points,closed]);
 
@@ -51,6 +53,7 @@ export default function Home() {
     setPatch(null);
     setPeriodic(null);
     setCertificate(null);
+    setHierarchy(null);
   };
 
   const run=()=>{
@@ -63,6 +66,7 @@ export default function Home() {
       setCertificate(certifyFundamentalDomain(result.sampleTiles,periodicResult.u,periodicResult.v));
     }else{
       setCertificate(null);
+    setHierarchy(null);
     }
   };
 
@@ -72,6 +76,7 @@ export default function Home() {
     setPatch(null);
     setPeriodic(null);
     setCertificate(null);
+    setHierarchy(null);
   };
 
   const load=(key:string)=>{
@@ -80,6 +85,7 @@ export default function Home() {
     setPatch(null);
     setPeriodic(null);
     setCertificate(null);
+    setHierarchy(null);
   };
 
   const view=patch ? fitTiles(patch.sampleTiles,720,420) : null;
@@ -274,11 +280,35 @@ export default function Home() {
           )}
         </div>
 
+        <div className="certificatePanel">
+          <div className="periodicHead">
+            <div><span className="step">06</span><h2>Hierarchy evidence</h2></div>
+            {hierarchy && <div className="resultPill">{hierarchy.evidence}</div>}
+          </div>
+          {!hierarchy ? (
+            <p className="periodicEmpty">A larger patch is required before repeated-cluster analysis can run.</p>
+          ) : (
+            <div className="periodicBody">
+              <div className="periodicVerdict">
+                <strong>{hierarchy.evidence==="strong" ? "Substitution-like structure detected" : hierarchy.evidence==="moderate" ? "Repeated cluster structure detected" : "Limited hierarchy evidence"}</strong>
+                <p>{hierarchy.reason}</p>
+              </div>
+              <dl className="periodicMetrics">
+                <div><dt>Cluster candidates</dt><dd>{hierarchy.candidates.length}</dd></div>
+                <div><dt>Strongest size</dt><dd>{hierarchy.strongest?.size ?? "—"}</dd></div>
+                <div><dt>Occurrences</dt><dd>{hierarchy.strongest?.occurrences ?? "—"}</dd></div>
+                <div><dt>Scale ratio</dt><dd>{hierarchy.strongest?.scaleRatio ?? "—"}</dd></div>
+              </dl>
+              <p className="mathNote"><strong>Meaning:</strong> this is structural evidence only. Repeated clusters and scale recurrence can point toward metatiles or substitution rules, but they are not by themselves a proof of aperiodicity.</p>
+            </div>
+          )}
+        </div>
+
         <div className="roadmap">
           <div className="done"><span>✓</span><b>Geometry validity</b><small>implemented</small></div>
           <div className="done"><span>✓</span><b>Local patch growth</b><small>implemented</small></div>
-          <div className="done"><span>✓</span><b>Bounded periodic scan</b><small>translation lattice detector</small></div>
-          <div className="done"><span>✓</span><b>Domain certificate</b><small>area + periodic non-overlap proof</small></div>
+          <div className="done"><span>✓</span><b>Periodic rejection</b><small>scan + certificate</small></div>
+          <div className="done"><span>✓</span><b>Hierarchy evidence</b><small>cluster / scale analysis</small></div>
         </div>
       </section>
 
