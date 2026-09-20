@@ -1,6 +1,7 @@
 import { Point, signedArea } from "./geometry";
 import { Tile } from "./tiling";
 import { Vector } from "./periodic";
+import { polygonsInteriorOverlap } from "./overlap";
 
 const EPS = 1e-6;
 
@@ -64,49 +65,6 @@ function representativeKey(tile:Tile,u:Vector,v:Vector){
 
 function shiftTile(tile:Tile,dx:number,dy:number):Tile{
   return tile.map(p=>({x:p.x+dx,y:p.y+dy}));
-}
-
-function orient(a:Point,b:Point,c:Point){
-  return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-}
-
-function pointOnSegment(p:Point,a:Point,b:Point){
-  if(Math.abs(orient(a,b,p))>EPS) return false;
-  return p.x>=Math.min(a.x,b.x)-EPS && p.x<=Math.max(a.x,b.x)+EPS &&
-         p.y>=Math.min(a.y,b.y)-EPS && p.y<=Math.max(a.y,b.y)+EPS;
-}
-
-function properSegmentIntersection(a:Point,b:Point,c:Point,d:Point){
-  const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);
-  return ((o1>EPS&&o2<-EPS)||(o1<-EPS&&o2>EPS)) &&
-         ((o3>EPS&&o4<-EPS)||(o3<-EPS&&o4>EPS));
-}
-
-function pointInPolygonStrict(p:Point,poly:Tile){
-  for(let i=0;i<poly.length;i++){
-    if(pointOnSegment(p,poly[i],poly[(i+1)%poly.length])) return false;
-  }
-  let inside=false;
-  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
-    const a=poly[i],b=poly[j];
-    const hit=((a.y>p.y)!==(b.y>p.y)) &&
-      (p.x < (b.x-a.x)*(p.y-a.y)/((b.y-a.y)||EPS)+a.x);
-    if(hit) inside=!inside;
-  }
-  return inside;
-}
-
-function overlap(a:Tile,b:Tile){
-  for(let i=0;i<a.length;i++){
-    const a1=a[i],a2=a[(i+1)%a.length];
-    for(let j=0;j<b.length;j++){
-      const b1=b[j],b2=b[(j+1)%b.length];
-      if(properSegmentIntersection(a1,a2,b1,b2)) return true;
-    }
-  }
-  for(const p of a) if(pointInPolygonStrict(p,b)) return true;
-  for(const p of b) if(pointInPolygonStrict(p,a)) return true;
-  return false;
 }
 
 function diameter(tile:Tile){
@@ -179,7 +137,7 @@ export function certifyFundamentalDomain(
           if(i===0 && j===0 && rb<ra) continue;
           const shift={x:i*u.x+j*v.x,y:i*u.y+j*v.y};
           translationsChecked++;
-          if(overlap(reps[ra],shiftTile(reps[rb],shift.x,shift.y))){
+          if(polygonsInteriorOverlap(reps[ra],shiftTile(reps[rb],shift.x,shift.y))){
             overlapsFound++;
             if(overlapsFound>10) break;
           }
