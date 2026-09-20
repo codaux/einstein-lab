@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Point, validatePolygon } from "@/lib/geometry";
 import { growPatch, Tile } from "@/lib/tiling";
 import { detectPeriodicTranslations, PeriodicResult } from "@/lib/periodic";
@@ -41,6 +41,9 @@ export default function Home() {
   const [periodic,setPeriodic]=useState<PeriodicResult|null>(null);
   const [certificate,setCertificate]=useState<FundamentalCertificate|null>(null);
   const [hierarchy,setHierarchy]=useState<HierarchyResult|null>(null);
+  const [running,setRunning]=useState(false);
+  const [solverError,setSolverError]=useState<string|null>(null);
+  const solverWorker=useRef<Worker|null>(null);
 
   const validation=useMemo(()=>closed ? validatePolygon(points) : null,[points,closed]);
 
@@ -58,17 +61,43 @@ export default function Home() {
   };
 
   const run=()=>{
-    if (!validation?.valid) return;
-    const result=growPatch(points,{maxTiles,allowReflection,beamWidth:18});
-    setPatch(result);
-    const periodicResult=result.reached>=6 ? detectPeriodicTranslations(result.sampleTiles) : null;
-    setPeriodic(periodicResult);
-    if(periodicResult?.u && periodicResult?.v){
-      setCertificate(certifyFundamentalDomain(result.sampleTiles,periodicResult.u,periodicResult.v));
-    }else{
-      setCertificate(null);
-    }
-    setHierarchy(result.reached>=12 ? detectHierarchy(result.sampleTiles) : null);
+    if (!validation?.valid || running) return;
+
+    solverWorker.current?.terminate();
+    const worker=new Worker(new URL("../workers/solver.worker.ts", import.meta.url));
+    solverWorker.current=worker;
+    setRunning(true);
+    setSolverError(null);
+    setPatch(null);
+    setPeriodic(null);
+    setCertificate(null);
+    setHierarchy(null);
+
+    worker.onmessage=(event)=>{
+      if(event.data.type==="done"){
+        setPatch(event.data.patch);
+        setPeriodic(event.data.periodic);
+        setCertificate(event.data.certificate);
+        setHierarchy(event.data.hierarchy);
+        setRunning(false);
+        worker.terminate();
+        solverWorker.current=null;
+      }else if(event.data.type==="error"){
+        setSolverError(event.data.message || "Solver failed.");
+        setRunning(false);
+        worker.terminate();
+        solverWorker.current=null;
+      }
+    };
+
+    worker.onerror=(event)=>{
+      setSolverError(event.message || "Solver worker crashed.");
+      setRunning(false);
+      worker.terminate();
+      solverWorker.current=null;
+    };
+
+    worker.postMessage({points,maxTiles,allowReflection});
   };
 
   const reset=()=>{
@@ -189,7 +218,8 @@ export default function Home() {
                 <span>Growth target <b>{maxTiles} tiles</b></span>
                 <input type="range" min="6" max="50" value={maxTiles} onChange={e=>setMaxTiles(+e.target.value)}/>
               </label>
-              <button className="run" onClick={run}>Run local tiling test</button>
+              <button className="run" onClick={run} disabled={running}>{running ? "Running solver…" : "Run local tiling test"}</button>
+              {solverError && <div className="issues"><strong>Solver error</strong><p>{solverError}</p></div>}
             </>
           )}
         </aside>
