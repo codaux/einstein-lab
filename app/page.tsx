@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Point, validatePolygon } from "@/lib/geometry";
 import { growPatch, Tile } from "@/lib/tiling";
 import { detectPeriodicTranslations, PeriodicResult } from "@/lib/periodic";
+import { certifyFundamentalDomain, FundamentalCertificate } from "@/lib/fundamental";
 
 const GRID = 28;
 const W = 720;
@@ -36,6 +37,7 @@ export default function Home() {
   const [maxTiles,setMaxTiles]=useState(24);
   const [patch,setPatch]=useState<ReturnType<typeof growPatch>|null>(null);
   const [periodic,setPeriodic]=useState<PeriodicResult|null>(null);
+  const [certificate,setCertificate]=useState<FundamentalCertificate|null>(null);
 
   const validation=useMemo(()=>closed ? validatePolygon(points) : null,[points,closed]);
 
@@ -48,13 +50,20 @@ export default function Home() {
     setPoints([...points,{x,y}]);
     setPatch(null);
     setPeriodic(null);
+    setCertificate(null);
   };
 
   const run=()=>{
     if (!validation?.valid) return;
     const result=growPatch(points,{maxTiles,allowReflection,beamWidth:18});
     setPatch(result);
-    setPeriodic(result.reached>=6 ? detectPeriodicTranslations(result.sampleTiles) : null);
+    const periodicResult=result.reached>=6 ? detectPeriodicTranslations(result.sampleTiles) : null;
+    setPeriodic(periodicResult);
+    if(periodicResult?.u && periodicResult?.v){
+      setCertificate(certifyFundamentalDomain(result.sampleTiles,periodicResult.u,periodicResult.v));
+    }else{
+      setCertificate(null);
+    }
   };
 
   const reset=()=>{
@@ -62,6 +71,7 @@ export default function Home() {
     setClosed(false);
     setPatch(null);
     setPeriodic(null);
+    setCertificate(null);
   };
 
   const load=(key:string)=>{
@@ -69,6 +79,7 @@ export default function Home() {
     setClosed(true);
     setPatch(null);
     setPeriodic(null);
+    setCertificate(null);
   };
 
   const view=patch ? fitTiles(patch.sampleTiles,720,420) : null;
@@ -237,11 +248,37 @@ export default function Home() {
           )}
         </div>
 
+        <div className="certificatePanel">
+          <div className="periodicHead">
+            <div><span className="step">05</span><h2>Fundamental-domain certificate</h2></div>
+            {certificate && <div className={`resultPill ${certificate.certified ? "negative" : ""}`}>{certificate.certified ? "CERTIFIED PERIODIC" : "not certified"}</div>}
+          </div>
+          {!certificate ? (
+            <p className="periodicEmpty">A candidate pair of independent translation vectors is required before this test can run.</p>
+          ) : (
+            <div className="periodicBody">
+              <div className="periodicVerdict">
+                <strong>{certificate.certified ? "Periodic tiling certificate found" : "No periodic certificate from these vectors"}</strong>
+                <p>{certificate.reason}</p>
+              </div>
+              <dl className="periodicMetrics">
+                <div><dt>Cell area</dt><dd>{certificate.areaCell.toFixed(4)}</dd></div>
+                <div><dt>Tile area / cell</dt><dd>{certificate.areaTiles.toFixed(4)}</dd></div>
+                <div><dt>Area error</dt><dd>{certificate.areaError.toExponential(2)}</dd></div>
+                <div><dt>Representatives</dt><dd>{certificate.representativeTiles.length}</dd></div>
+                <div><dt>Overlap checks</dt><dd>{certificate.translationsChecked.toLocaleString()}</dd></div>
+                <div><dt>Overlaps</dt><dd>{certificate.overlapsFound}</dd></div>
+              </dl>
+              <p className="mathNote"><strong>Meaning:</strong> when certified, the extracted tile representatives fill one translation cell by area and their periodic copies do not overlap. That is enough to reject the polygon as an Einstein candidate under the tested reflection setting.</p>
+            </div>
+          )}
+        </div>
+
         <div className="roadmap">
           <div className="done"><span>✓</span><b>Geometry validity</b><small>implemented</small></div>
           <div className="done"><span>✓</span><b>Local patch growth</b><small>implemented</small></div>
           <div className="done"><span>✓</span><b>Bounded periodic scan</b><small>translation lattice detector</small></div>
-          <div><span>04</span><b>Formal domain certificate</b><small>exact-cover / SAT stage</small></div>
+          <div className="done"><span>✓</span><b>Domain certificate</b><small>area + periodic non-overlap proof</small></div>
         </div>
       </section>
 
