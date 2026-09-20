@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Point, validatePolygon } from "@/lib/geometry";
 import { growPatch, Tile } from "@/lib/tiling";
+import { detectPeriodicTranslations, PeriodicResult } from "@/lib/periodic";
 
 const GRID = 28;
 const W = 720;
@@ -34,6 +35,7 @@ export default function Home() {
   const [allowReflection,setAllowReflection]=useState(true);
   const [maxTiles,setMaxTiles]=useState(24);
   const [patch,setPatch]=useState<ReturnType<typeof growPatch>|null>(null);
+  const [periodic,setPeriodic]=useState<PeriodicResult|null>(null);
 
   const validation=useMemo(()=>closed ? validatePolygon(points) : null,[points,closed]);
 
@@ -45,23 +47,28 @@ export default function Home() {
     if (points.some(p=>p.x===x&&p.y===y)) return;
     setPoints([...points,{x,y}]);
     setPatch(null);
+    setPeriodic(null);
   };
 
   const run=()=>{
     if (!validation?.valid) return;
-    setPatch(growPatch(points,{maxTiles,allowReflection,beamWidth:18}));
+    const result=growPatch(points,{maxTiles,allowReflection,beamWidth:18});
+    setPatch(result);
+    setPeriodic(result.reached>=6 ? detectPeriodicTranslations(result.sampleTiles) : null);
   };
 
   const reset=()=>{
     setPoints([]);
     setClosed(false);
     setPatch(null);
+    setPeriodic(null);
   };
 
   const load=(key:string)=>{
     setPoints(samples[key]);
     setClosed(true);
     setPatch(null);
+    setPeriodic(null);
   };
 
   const view=patch ? fitTiles(patch.sampleTiles,720,420) : null;
@@ -206,11 +213,35 @@ export default function Home() {
           </div>
         )}
 
+        <div className="periodicPanel">
+          <div className="periodicHead">
+            <div><span className="step">04</span><h2>Periodicity scan</h2></div>
+            {periodic && <div className={`resultPill ${periodic.found ? "negative" : ""}`}>{periodic.found ? "periodic pattern found" : periodic.confidence}</div>}
+          </div>
+          {!periodic ? (
+            <p className="periodicEmpty">Run a local tiling test first. The periodicity scanner needs a sufficiently large patch.</p>
+          ) : (
+            <div className="periodicBody">
+              <div className="periodicVerdict">
+                <strong>{periodic.found ? "Strong periodic rejection evidence" : periodic.confidence==="suggestive" ? "Possible translational repetition" : "No 2D period detected"}</strong>
+                <p>{periodic.reason}</p>
+              </div>
+              <dl className="periodicMetrics">
+                <div><dt>Vectors tested</dt><dd>{periodic.testedVectors}</dd></div>
+                <div><dt>Repeated cells</dt><dd>{periodic.repeatedTiles}</dd></div>
+                <div><dt>u</dt><dd>{periodic.u ? `(${periodic.u.x.toFixed(2)}, ${periodic.u.y.toFixed(2)})` : "—"}</dd></div>
+                <div><dt>v</dt><dd>{periodic.v ? `(${periodic.v.x.toFixed(2)}, ${periodic.v.y.toFixed(2)})` : "—"}</dd></div>
+              </dl>
+              <p className="mathNote"><strong>Scope:</strong> this detects translational repetition inside the finite patch. A formal whole-plane fundamental-domain certificate is still a later solver stage.</p>
+            </div>
+          )}
+        </div>
+
         <div className="roadmap">
           <div className="done"><span>✓</span><b>Geometry validity</b><small>implemented</small></div>
           <div className="done"><span>✓</span><b>Local patch growth</b><small>implemented</small></div>
-          <div><span>03</span><b>Periodic domain search</b><small>next solver stage</small></div>
-          <div><span>04</span><b>Aperiodic evidence</b><small>hierarchy / substitution analysis</small></div>
+          <div className="done"><span>✓</span><b>Bounded periodic scan</b><small>translation lattice detector</small></div>
+          <div><span>04</span><b>Formal domain certificate</b><small>exact-cover / SAT stage</small></div>
         </div>
       </section>
 
